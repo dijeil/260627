@@ -52,3 +52,19 @@ xlsx는 인코딩 문제도 없고 숫자 형식 변환 문제도 없어서 구�
 
 구매자가 **가장 쉽고 편하게** 열어볼 수 있는 것이 최우선이다.
 추가 설정 없이 더블클릭 한 번으로 바로 보이게 만든다.
+
+## 4. 저장 유틸 사용 (권장)
+
+이 프로젝트에는 위 규칙이 이미 적용된 유틸이 있다. **직접 `to_csv`를 쓰지 말고 이것을 쓴다.**
+
+```python
+from utils.excel_safe import save_for_excel
+
+save_for_excel(df, "결과")        # 앞자리 0 있으면 xlsx, 없으면 csv(utf-8-sig) 자동 선택
+save_for_excel(df, "결과.csv")    # csv 고정 (앞자리 0 열이 있으면 경고를 띄움)
+save_for_excel(df, "결과.xlsx")   # xlsx 고정
+save_for_excel({"주소": df1, "매출": df2}, "대시보드")   # 여러 시트
+```
+
+제공 함수: `save_for_excel` · `save_csv` · `save_xlsx` · `read_any` · `find_text_cols`
+(`utils/excel_safe.py`)
