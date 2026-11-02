@@ -1,0 +1,19 @@
+{
+  "집-PC": {
+    "label": "집 컴퓨터",
+    "hostname": "집-PC",
+    "lan": [],
+    "tailscale": [
+      "100.107.118.70"
+    ],
+    "port": 8100,
+    "last_seen": "이전에 사용하던 주소 (수동 등록)"
+  },
+  "vm": {
+    "hostname": "vm",
+    "lan": [],
+    "tailscale": [],
+    "port": 8100,
+    "last_seen": "2026-11-02 05:22"
+  }
+}
