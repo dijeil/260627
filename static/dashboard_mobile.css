@@ -1,0 +1,112 @@
+/* =====================================================================
+   대시보드 모바일 보정 CSS
+   ---------------------------------------------------------------------
+   붙이는 법: 대시보드 HTML 의 <head> 안에 한 줄
+     <link rel="stylesheet" href="/static/dashboard_mobile.css">
+   (표를 폰에서 카드로 바꾸려면 dashboard_mobile.js 도 같이 넣으세요)
+
+   2026-11-11 폰 화면 점검에서 나온 것들을 고칩니다.
+     · '킬스위/치', '전체/손익', '(미/실현' 처럼 단어 중간에서 줄이 바뀜
+     · 감시종목 표 오른쪽 열이 화면 밖으로 잘림
+     · 0원이 빨강(이익색)으로 칠해짐, 개수·시각 같은 중립 값이 파랑(손실색)
+     · 상태 배지 색 규칙이 없음
+   기존 디자인을 덮어쓰지 않도록, 새 클래스 위주로만 정의했습니다.
+   ===================================================================== */
+
+:root {
+  --st-ok-fg: #56d364;      --st-ok-bg: rgba(46, 160, 67, .16);   --st-ok-bd: rgba(46, 160, 67, .55);
+  --st-info-fg: #c9d1d9;    --st-info-bg: rgba(139, 149, 161, .14); --st-info-bd: rgba(139, 149, 161, .35);
+  --st-warn-fg: #ffcf7a;    --st-warn-bg: rgba(245, 165, 36, .14); --st-warn-bd: rgba(245, 165, 36, .6);
+  --st-danger-fg: #ffa198;  --st-danger-bg: rgba(248, 81, 73, .16); --st-danger-bd: rgba(248, 81, 73, .7);
+  --pnl-up: #ff6b6b;        /* 이익·상승 (한국식 빨강) */
+  --pnl-down: #4ea1ff;      /* 손실·하락 (한국식 파랑) */
+  --pnl-zero: #c9d1d9;      /* 0 은 중립 */
+  --muted: #8b95a1;
+  --neutral-strong: #e6edf3; /* 개수·시각·자본 같은 중립 값 */
+}
+
+/* ---------- 1) 한글 줄바꿈: 단어 단위로만 끊기 ---------- */
+html, body {
+  word-break: keep-all;        /* '킬스위/치' 같은 단어 중간 끊김 방지 */
+  overflow-wrap: anywhere;     /* 아주 긴 영문·숫자는 넘치지 않게 */
+  line-break: strict;
+  -webkit-text-size-adjust: 100%;
+}
+.nowrap { white-space: nowrap; }  /* '-23,236,493원 (-4.65%)', '2125회' 같은 묶음 */
+
+/* ---------- 2) 상태 배지 (utils/dash_status.py 의 Badge.css_class) ---------- */
+.st {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 999px; border: 1px solid transparent;
+  font-size: 14px; font-weight: 700; line-height: 1.35;
+  word-break: keep-all;
+}
+.st-ok     { color: var(--st-ok-fg);     background: var(--st-ok-bg);     border-color: var(--st-ok-bd); }
+.st-info   { color: var(--st-info-fg);   background: var(--st-info-bg);   border-color: var(--st-info-bd); }
+.st-warn   { color: var(--st-warn-fg);   background: var(--st-warn-bg);   border-color: var(--st-warn-bd); }
+.st-danger { color: var(--st-danger-fg); background: var(--st-danger-bg); border-color: var(--st-danger-bd); }
+.st-ok::before, .st-warn::before, .st-danger::before {
+  content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none;
+}
+.st-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* 맨 위 경고 띠 (top_alerts 결과) */
+.alert-band {
+  display: block; margin: 0 0 12px; padding: 12px 14px; border-radius: 10px;
+  border-left: 5px solid var(--st-danger-bd); background: var(--st-danger-bg); color: var(--st-danger-fg);
+  font-weight: 700; line-height: 1.5;
+}
+.alert-band.warn { border-left-color: var(--st-warn-bd); background: var(--st-warn-bg); color: var(--st-warn-fg); }
+.alert-band small { display: block; margin-top: 4px; font-weight: 500; color: inherit; opacity: .9; }
+
+/* ---------- 3) 손익 색: 0 은 중립 ---------- */
+.pnl-up   { color: var(--pnl-up)   !important; }
+.pnl-down { color: var(--pnl-down) !important; }
+.pnl-zero { color: var(--pnl-zero) !important; }
+.val      { color: var(--neutral-strong); font-weight: 700; } /* 개수·시각 등 중립 값 (파랑 금지) */
+
+/* ---------- 4) 라벨-값 2열 요약 (정렬 들쭉날쭉 해결) ---------- */
+.kv {
+  display: grid; grid-template-columns: minmax(6.5em, max-content) 1fr;
+  column-gap: 14px; row-gap: 10px; align-items: baseline; margin: 0;
+}
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.kv dd .note { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); font-weight: 400; }
+
+/* ---------- 5) 폰에서: 제목·표·여백 ---------- */
+@media (max-width: 600px) {
+  /* 제목 옆 부제는 제목 아래 줄로 ('…킬스위/치 [J①…]' 처럼 꼬리만 떨어지는 문제) */
+  .panel-head { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .panel-sub, h1 > small, h2 > small, h3 > small {
+    display: block; margin-top: 4px; font-size: 13px; font-weight: 400; color: var(--muted);
+  }
+
+  /* 비어 있는 상태 카드가 반쪽만 차지하지 않게 */
+  .empty, .empty-card { width: 100%; box-sizing: border-box; font-size: 15px; line-height: 1.6; }
+
+  /* 표 → 카드 (dashboard_mobile.js 가 table 에 m-cards 클래스와 data-label 을 붙여 줌) */
+  table.m-cards, table.m-cards tbody, table.m-cards tr, table.m-cards td { display: block; width: 100%; box-sizing: border-box; }
+  table.m-cards thead { display: none; }
+  table.m-cards tr {
+    padding: 12px 14px; margin: 0 0 10px; border-radius: 10px;
+    border: 1px solid rgba(139, 149, 161, .25); background: rgba(255, 255, 255, .02);
+  }
+  table.m-cards td {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    padding: 4px 0; border: 0; text-align: right;
+  }
+  table.m-cards td::before {
+    content: attr(data-label); color: var(--muted); text-align: left; flex: none; max-width: 45%;
+  }
+  table.m-cards td.m-title { font-size: 17px; font-weight: 800; justify-content: flex-start; text-align: left; padding-bottom: 6px; }
+  table.m-cards td.m-title::before { content: none; }
+  table.m-cards td.m-idx { display: none; }
+  table.m-cards td:empty { display: none; }
+
+  /* 표를 감싼 가로 스크롤 상자는 카드가 되면 필요 없음 */
+  .m-cards-wrap { overflow: visible !important; }
+
+  /* 오른쪽 아래 '?' 버튼이 마지막 내용을 가리지 않게 */
+  body { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+}

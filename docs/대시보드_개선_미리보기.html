@@ -1,0 +1,443 @@
+<title>11·11 대시보드 점검</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: 한 열 문서. 각 패널마다 '지금' / '개선안' 폰 화면 두 장을 나란히 두고, 폰에서는 위아래로 쌓는다. */
+:root {
+  --paper: #f3f5f7;
+  --ink: #16202a;
+  --sub: #586573;
+  --line: #d8dee5;
+  --card: #ffffff;
+  --accent: #0d766f;
+  --ok: #1d7f38;   --ok-bg: #e2f2e6;
+  --warn: #9a5b00; --warn-bg: #fcefd8;
+  --danger: #b8312b; --danger-bg: #fbe4e2;
+  --code-bg: #e9edf1;
+
+  /* 폰 화면 = 실제 대시보드. 테마와 상관없이 언제나 어두운 화면 그대로 보여 준다. */
+  --scr-bg: #0b0f17;
+  --scr-card: #121822;
+  --scr-line: #252f3f;
+  --scr-fg: #e6edf3;
+  --scr-sub: #8b95a1;
+  --scr-blue: #58a6ff;
+  --scr-up: #ff6b6b;
+  --scr-down: #4ea1ff;
+  --scr-chip: #2a313c;
+  --scr-green: #238636;
+  --s-ok-fg: #56d364;   --s-ok-bg: rgba(46,160,67,.16);  --s-ok-bd: rgba(46,160,67,.55);
+  --s-info-fg: #c9d1d9; --s-info-bg: rgba(139,149,161,.14); --s-info-bd: rgba(139,149,161,.35);
+  --s-warn-fg: #ffcf7a; --s-warn-bg: rgba(245,165,36,.14); --s-warn-bd: rgba(245,165,36,.6);
+  --s-danger-fg: #ffa198; --s-danger-bg: rgba(248,81,73,.16); --s-danger-bd: rgba(248,81,73,.7);
+
+  --f-body: "IBM Plex Sans KR", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f141a; --ink: #e2e8ee; --sub: #98a4b1; --line: #29323d; --card: #161d25; --accent: #4cc0b5;
+    --ok: #5fd27a; --ok-bg: rgba(46,160,67,.16);
+    --warn: #f2b84f; --warn-bg: rgba(245,165,36,.13);
+    --danger: #ff8a80; --danger-bg: rgba(248,81,73,.15);
+    --code-bg: #1d252f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f141a; --ink: #e2e8ee; --sub: #98a4b1; --line: #29323d; --card: #161d25; --accent: #4cc0b5;
+  --ok: #5fd27a; --ok-bg: rgba(46,160,67,.16);
+  --warn: #f2b84f; --warn-bg: rgba(245,165,36,.13);
+  --danger: #ff8a80; --danger-bg: rgba(248,81,73,.15);
+  --code-bg: #1d252f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--f-body); font-size: 15px; line-height: 1.65;
+  word-break: keep-all; overflow-wrap: anywhere;
+}
+.wrap {
+  max-width: 1040px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px;
+  display: grid; gap: 40px;
+}
+h1, h2, h3 { text-wrap: balance; line-height: 1.3; margin: 0; }
+h1 { font-size: clamp(24px, 4.2vw, 32px); font-weight: 700; letter-spacing: -.01em; }
+h2 { font-size: 21px; font-weight: 700; }
+h3 { font-size: 16px; font-weight: 700; }
+p { margin: 0; }
+.prose { max-width: 66ch; display: grid; gap: 10px; }
+.eyebrow { font-size: 12.5px; font-weight: 600; letter-spacing: .06em; color: var(--accent); }
+.muted { color: var(--sub); }
+.mono, code { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+code { background: var(--code-bg); padding: 1px 6px; border-radius: 5px; font-size: .9em; }
+section { display: grid; gap: 16px; min-width: 0; }
+
+/* ---------- 머리 ---------- */
+header { display: grid; gap: 12px; }
+.timeline { display: grid; gap: 8px; margin: 4px 0 0; padding: 0; list-style: none; max-width: 70ch; }
+.timeline li { display: grid; grid-template-columns: 4.2em 1fr; gap: 12px; align-items: baseline; }
+.timeline .t { font-family: var(--f-mono); font-weight: 600; color: var(--sub); font-variant-numeric: tabular-nums; }
+
+/* ---------- 지금 바로 ---------- */
+.steps { display: grid; gap: 12px; counter-reset: s; margin: 0; padding: 0; list-style: none; }
+.steps li {
+  counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 14px; align-items: start;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+}
+.steps li::before {
+  content: counter(s); display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--danger-bg); color: var(--danger); font-weight: 700; font-family: var(--f-mono);
+}
+.steps li.later::before { background: var(--warn-bg); color: var(--warn); }
+.steps b { display: block; margin-bottom: 2px; }
+
+/* ---------- 지금 / 개선안 비교 ---------- */
+.compare { display: grid; gap: 20px; grid-template-columns: 1fr; }
+@media (min-width: 820px) { .compare { grid-template-columns: 1fr 1fr; align-items: start; } }
+.col { display: grid; gap: 10px; min-width: 0; justify-items: center; }
+.col-label { justify-self: stretch; display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+.tag { font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+.tag.before { background: var(--danger-bg); color: var(--danger); }
+.tag.after { background: var(--ok-bg); color: var(--ok); }
+.col-label span.muted { font-weight: 500; font-size: 13px; }
+
+/* ---------- 폰 화면 (대시보드 재현) ---------- */
+.screen {
+  width: 100%; max-width: 390px; background: var(--scr-bg); color: var(--scr-fg);
+  border: 6px solid #1c232d; border-radius: 26px; padding: 18px 14px 22px;
+  font-size: 14px; line-height: 1.6; display: grid; gap: 12px; align-content: start;
+  box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 12px 28px -18px rgba(0,0,0,.45);
+}
+.screen .ttl { color: var(--scr-blue); font-size: 21px; font-weight: 700; line-height: 1.25; }
+.screen .ttl small { color: var(--scr-sub); font-size: 12.5px; font-weight: 400; margin-left: 6px; }
+.screen.after .ttl { color: var(--scr-fg); }
+.screen.after .ttl small { display: block; margin: 4px 0 0; }
+.screen .sub { color: var(--scr-sub); font-size: 12.5px; }
+.sbox { background: var(--scr-card); border: 1px solid var(--scr-line); border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+.chip { display: inline-block; padding: 3px 12px; border-radius: 999px; background: var(--scr-chip); color: var(--scr-fg); font-weight: 600; }
+.chip.green { background: var(--scr-green); color: #fff; }
+.blue { color: var(--scr-blue); font-weight: 700; }
+.up { color: var(--scr-up); font-weight: 700; }
+.down { color: var(--scr-down); font-weight: 700; }
+.zero { color: var(--s-info-fg); font-weight: 700; }
+.strong { color: var(--scr-fg); font-weight: 700; }
+.ssub { color: var(--scr-sub); }
+.hr { height: 1px; background: var(--scr-line); }
+.mark { outline: 2px dashed var(--s-danger-bd); outline-offset: 2px; border-radius: 4px; }
+.flag {
+  display: inline-block; font-size: 11px; font-weight: 700; color: var(--s-danger-fg);
+  background: var(--s-danger-bg); border-radius: 4px; padding: 0 5px; margin-left: 4px; vertical-align: 1px;
+}
+.legacy-row { display: grid; grid-template-columns: 6.6em auto 1fr; gap: 8px; align-items: baseline; }
+.legacy-row .r { text-align: right; color: var(--scr-sub); font-size: 13px; }
+.cut { overflow: hidden; white-space: nowrap; }
+.cut table { border-collapse: collapse; width: 470px; }
+.cut th, .cut td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--scr-line); }
+.cut th { color: var(--scr-sub); font-weight: 600; }
+.codepill { background: #1b2a44; color: #9cc2ff; border-radius: 6px; padding: 1px 8px; font-family: var(--f-mono); font-size: 12.5px; }
+
+/* 개선안 전용 */
+.st { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px; border-radius: 999px; border: 1px solid transparent; font-size: 12.5px; font-weight: 700; line-height: 1.45; }
+.st-ok { color: var(--s-ok-fg); background: var(--s-ok-bg); border-color: var(--s-ok-bd); }
+.st-info { color: var(--s-info-fg); background: var(--s-info-bg); border-color: var(--s-info-bd); }
+.st-warn { color: var(--s-warn-fg); background: var(--s-warn-bg); border-color: var(--s-warn-bd); }
+.st-danger { color: var(--s-danger-fg); background: var(--s-danger-bg); border-color: var(--s-danger-bd); }
+.st-ok::before, .st-warn::before, .st-danger::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.st-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.band { border-radius: 10px; padding: 10px 12px; border-left: 4px solid var(--s-danger-bd); background: var(--s-danger-bg); color: var(--s-danger-fg); font-weight: 700; line-height: 1.5; }
+.band.warn { border-left-color: var(--s-warn-bd); background: var(--s-warn-bg); color: var(--s-warn-fg); }
+.band small { display: block; font-weight: 500; font-size: 12.5px; margin-top: 3px; opacity: .92; }
+.kv { display: grid; grid-template-columns: 7.2em 1fr; column-gap: 10px; row-gap: 9px; margin: 0; align-items: baseline; }
+.kv dt { color: var(--scr-sub); }
+.kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+.kv .note { display: block; font-size: 12px; color: var(--scr-sub); font-weight: 400; line-height: 1.5; }
+.kv .note.w { color: var(--s-warn-fg); }
+details.more { border-top: 1px solid var(--scr-line); padding-top: 8px; font-size: 12.5px; color: var(--scr-sub); }
+details.more summary { cursor: pointer; color: var(--scr-fg); font-weight: 600; }
+details.more summary:focus-visible { outline: 2px solid var(--scr-blue); outline-offset: 2px; border-radius: 4px; }
+.hold { border: 1px solid var(--s-danger-bd); }
+.hold b { color: var(--s-danger-fg); }
+.wcard { display: grid; gap: 4px; }
+.wcard .name { font-size: 16.5px; font-weight: 800; display: flex; gap: 8px; align-items: baseline; }
+.wcard .name .mono { font-size: 12.5px; color: var(--scr-sub); font-weight: 500; }
+.wcard .line { display: flex; justify-content: space-between; gap: 12px; }
+.wcard .line span:first-child { color: var(--scr-sub); }
+.help { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; color: var(--scr-sub); font-size: 13px; line-height: 1.55; }
+.help b { color: var(--scr-fg); }
+.mini { font-size: 12.5px; color: var(--sub); max-width: 390px; justify-self: center; }
+
+/* ---------- 고칠 목록 ---------- */
+.fixes { display: grid; gap: 10px; }
+.fix {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+  display: grid; gap: 8px; grid-template-columns: auto 1fr; column-gap: 12px; align-items: start;
+}
+.fix .lv { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; margin-top: 2px; }
+.lv.must { background: var(--danger-bg); color: var(--danger); }
+.lv.should { background: var(--warn-bg); color: var(--warn); }
+.lv.nice { background: var(--code-bg); color: var(--sub); }
+.fix .body { display: grid; gap: 6px; min-width: 0; }
+.fix .ba { display: grid; grid-template-columns: 3.4em 1fr; gap: 4px 10px; font-size: 14px; }
+.fix .ba .k { color: var(--sub); font-size: 12.5px; padding-top: 1px; }
+.fix .ba .now { color: var(--sub); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+.fix .ba .new { font-weight: 600; }
+.fix .who { font-size: 12.5px; color: var(--sub); }
+
+/* ---------- 적용 ---------- */
+pre {
+  margin: 0; background: var(--code-bg); border-radius: 10px; padding: 14px 16px;
+  overflow-x: auto; font-family: var(--f-mono); font-size: 13px; line-height: 1.6;
+}
+.files { display: grid; gap: 10px; grid-template-columns: 1fr; }
+@media (min-width: 760px) { .files { grid-template-columns: repeat(3, 1fr); } }
+.file { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.file .path { font-family: var(--f-mono); font-size: 13px; color: var(--accent); font-weight: 600; overflow-wrap: anywhere; }
+.foot { font-size: 13px; color: var(--sub); max-width: 70ch; }
+a { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">2026-11-11 (수) · 장중 폰 화면 + 엔진 로그 점검</p>
+  <h1>장중인데 화면은 평온했습니다</h1>
+  <div class="prose">
+    <p>14:26에 본 대시보드는 "장외/대기", 초록 "킬스위치 정상", "보유 종목 없음"을 보여 줬습니다. 엔진 로그를 맞춰 보니 실제 상황은 반대였습니다.</p>
+  </div>
+  <ul class="timeline">
+    <li><span class="t">10:49</span><span>자동매매가 한 번 켜짐 (감시 목록 만든 시각). 이후 언젠가 꺼짐</span></li>
+    <li><span class="t">14:26</span><span>폰 화면: <b>장외/대기</b> · <b>킬스위치 정상</b>(초록) · <b>보유 종목 없음</b>. 실제로는 정규장이고 자동매매는 꺼져 있었음</span></li>
+    <li><span class="t">14:34</span><span>자동매매 재시작. <b>보유 9종목이 감시 밖</b>이라 손절이 돌지 않는다는 오류가 찍힘 (지정 종목만 모드)</span></li>
+    <li><span class="t">14:34~</span><span>한투 잔고 조회가 계속 실패 (<code>모의투자 신청내역을 확인하세요</code> / 시간 초과). 그래서 <b>SFA반도체 손절도 보류</b>, 긴급정지는 금액 기준만 작동</span></li>
+  </ul>
+</header>
+
+<section aria-labelledby="now">
+  <h2 id="now">오늘 장 마감 전에 할 일</h2>
+  <ol class="steps">
+    <li><div><b>한국투자증권 앱에서 보유 종목을 직접 확인</b><span class="muted">지금은 어떤 종목도 자동 손절이 돌지 않습니다. 손절선 아래로 내려간 종목이 있으면 직접 정리하세요.</span></div></li>
+    <li><div><b>"모의투자 신청내역을 확인하세요" 해결</b><span class="muted">보통 모의투자 신청 기간이 끝났거나, <code>.env</code> 계좌번호가 모의투자 계좌와 다를 때 나옵니다. 한투 홈페이지·앱에서 모의투자 신청 상태와 기간을 확인하세요.</span></div></li>
+    <li class="later"><div><b>잔고가 다시 잡히면 지정 종목만 모드 끄기</b><span class="muted"><code>config.json</code>의 <code>UNIVERSE_FIXED_ONLY</code>를 <code>false</code>로 바꾸고 자동매매를 다시 켭니다. 장중 재시작은 하루 상태를 이어받으므로 괜찮습니다.</span></div></li>
+  </ol>
+</section>
+
+<section aria-labelledby="p21">
+  <div class="prose">
+    <h2 id="p21">실시간 시세판 (2-1)</h2>
+    <p class="muted">개선안은 14:35 엔진 재시작 직후 로그 상태를 그대로 넣어 그렸습니다. 기준 시각 같은 값은 예시입니다.</p>
+  </div>
+  <div class="compare">
+    <div class="col">
+      <div class="col-label"><span class="tag before">지금</span><span class="muted">14:26 캡처 재현</span></div>
+      <div class="screen" aria-label="지금 화면 재현">
+        <div class="ttl">2-1 실시간 시세 티커보드<small>SSE 1초 푸시 · 장상태/킬스위치 [J① 이벤트스트림]</small></div>
+        <div class="sbox">
+          <div><span class="chip mark">장외/대기</span><span class="flag">장중임</span> <span class="chip green mark">킬스위치 정상</span></div>
+          <div class="hr"></div>
+          <div class="ssub">당일 시작 자본 <span class="strong">476,763,507원</span> · 1회 투입금 <span class="strong">9,535,270원</span> (자본의 2.0%) · 종목당 상한 <span class="strong">30,000,000원</span></div>
+          <div class="ssub">일일손익 <span class="up mark">0원</span><span class="flag">0인데 빨강</span> (0.00%) ⚠ 접수기준(추정) · 거래 <span class="strong">0</span>회 | 전체손익 <span class="down">-23,236,493원</span> (-4.65%) ✅ 한투 잔고 · 전체거래 <span class="strong">2125</span>회 · <span class="mark">원장 FIFO -4,695,421원</span> | 평가손익 <span class="down">-6,595,925원</span> (미실현 · 전체손익에 포함 · 출처 한투 잔고)</div>
+        </div>
+        <div class="ssub"><span class="mark">보유 종목 없음</span><span class="flag">사실 아님</span></div>
+        <div class="sbox" style="max-width: 70%;"><span class="mark">status.json 대기중 — trading_core 실행 시 자동 표시</span></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="col-label"><span class="tag after">개선안</span><span class="muted">같은 상황을 사실대로</span></div>
+      <div class="screen after" aria-label="개선안 화면">
+        <div class="ttl">실시간 시세판<small>1초마다 자동 갱신 · 빨강 이익·상승 / 파랑 손실·하락</small></div>
+        <div class="st-row">
+          <span class="st st-warn">모의투자</span>
+          <span class="st st-info">정규장 · 마감까지 55분</span>
+          <span class="st st-ok">자동매매 작동 중 · 2초 전 신호</span>
+        </div>
+        <div class="band">손절 보류 중 — 잔고 조회 실패<small>잔고를 확인하지 못해 프로그램이 손절 판정을 미루고 있습니다. 한국투자증권 앱에서 보유 종목을 직접 확인하세요.</small></div>
+        <div class="band">손절 보호 안 되는 보유 종목 9개<small>SK하이닉스, 삼성중공업, 진양폴리, 기업은행, 강원랜드, 에스엠국일, 가비아, 씨티알모빌리티, 티에프이 — 실시간 시세를 받지 않습니다.</small></div>
+        <div class="st-row"><span class="st st-warn">긴급정지 일부만 작동 (금액 기준만)</span></div>
+        <div class="sbox">
+          <dl class="kv">
+            <dt>누적 손익</dt>
+            <dd><span class="down">-23,236,493원</span> <span class="down">(-4.65%)</span><span class="note">처음 원금 5억 원 대비 · 한투 잔고 14:20 기준 · <span class="w">15분 전 값</span></span></dd>
+            <dt>보유 평가손익</dt>
+            <dd><span class="down">-6,595,925원</span><span class="note">아직 팔지 않은 종목 · 누적 손익에 포함</span></dd>
+            <dt>오늘 매매 손익</dt>
+            <dd><span class="zero">0원 (0.00%)</span><span class="note">오늘 매매 0건 · 주문 기준 잠정치(장 마감 후 확정)</span></dd>
+            <dt>오늘 시작 총자산</dt>
+            <dd class="strong">476,763,507원</dd>
+            <dt>한 번 살 때</dt>
+            <dd class="strong">9,535,270원 <span class="ssub" style="font-weight:400">(자본의 2%)</span></dd>
+            <dt>한 종목 최대</dt>
+            <dd class="strong">30,000,000원</dd>
+          </dl>
+          <details class="more">
+            <summary>손익 자세히</summary>
+            <p style="margin-top:6px">매매기록으로 계산한 실현손익 -4,695,421원 · 증권사 기준(-16,640,568원)과 11,945,147원 차이. 수수료·세금 포함 여부를 확인해야 합니다. 누적 거래 2,125회.</p>
+          </details>
+        </div>
+        <div class="sbox hold"><b>보유 종목을 불러오지 못했습니다</b><span class="ssub">한투 잔고 조회 실패 때문이며, 보유 주식이 없다는 뜻이 아닙니다. 평가손익 -6,595,925원이 있으므로 보유 주식이 있습니다.</span></div>
+      </div>
+      <p class="mini">자동매매가 꺼져 있으면 맨 위 초록 배지 대신 빨간 띠 <b>"자동매매 꺼짐 — 응답 없음"</b>이 뜨고, 긴급정지는 회색 <b>"확인 불가"</b>로 바뀝니다. 신호가 없을 때는 어떤 배지도 초록이 되지 않습니다.</p>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="p16">
+  <div class="prose">
+    <h2 id="p16">오늘의 감시 종목 (1-6)</h2>
+    <p class="muted">"감시 1개"인데 설명은 "20개인 이유"를 말하고, "0 / 10 남음"은 0개 남았다는 말로도 읽힙니다.</p>
+  </div>
+  <div class="compare">
+    <div class="col">
+      <div class="col-label"><span class="tag before">지금</span><span class="muted">14:27 캡처 재현</span></div>
+      <div class="screen" aria-label="지금 화면 재현">
+        <div class="ttl">1-6 오늘의 감시종목<small>밤스캔 후보 → 장중엔진 · 10초 폴링</small></div>
+        <div class="sbox">
+          <div class="legacy-row"><span>감시 종목</span><span class="blue">1개</span><span class="r">(밤스캔에서 온 것 0개)</span></div>
+          <div class="legacy-row"><span>밤스캔 스캔일</span><span class="blue mark">-</span><span class="r">낡음 — 기존 종목만 쓰는 중</span></div>
+          <div class="legacy-row"><span>오늘의 자리</span><span class="blue mark">0 / 10</span><span class="r">남음</span></div>
+          <div class="legacy-row"><span>목록 만든 시각</span><span></span><span class="r blue">2026-11-11 10:49</span></div>
+        </div>
+        <div class="sbox cut">
+          <table>
+            <thead><tr><th>#</th><th>종목</th><th>코드</th><th>들어온 이유</th><th>지…</th></tr></thead>
+            <tbody><tr><td>1</td><td>SFA반도체</td><td><span class="codepill">036540</span></td><td>지정종목(고정)</td><td>디…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="ssub" style="font-size:13px"><b class="strong">감시 ≠ 매수입니다.</b> … 실제 매수는 그날 먼저 신호가 난 10종목까지만 … <span class="mark">종목 수가 20개인 이유</span>: 한국투자증권 실시간 등록은 한 번에 41건까지인데 … (20 × 2 = 40건). 이 목록은 엔진이 기동할 때 정해집니다 …</div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="col-label"><span class="tag after">개선안</span><span class="muted">14:35 재시작 후</span></div>
+      <div class="screen after" aria-label="개선안 화면">
+        <div class="ttl">오늘의 감시 종목<small>어젯밤 고른 후보를 장중에 지켜봅니다 · 10초마다 갱신</small></div>
+        <div class="band warn">지정 종목만 모드 — 밤스캔·보유 종목 감시 안 함<small>설정에 적은 종목만 감시합니다. 해제: config.json 의 UNIVERSE_FIXED_ONLY 를 false 로 바꾸고 자동매매를 다시 켜세요.</small></div>
+        <div class="sbox">
+          <dl class="kv">
+            <dt>감시 종목</dt>
+            <dd><span class="strong">1 / 최대 20</span><span class="note">밤스캔 0개 · 고정 1개</span><span class="note w">감시 종목이 1개뿐이라 오늘은 최대 1종목만 살 수 있습니다</span></dd>
+            <dt>밤스캔</dt>
+            <dd><span class="strong">사용 안 함</span><span class="note">지정 종목만 모드라 쓰지 않습니다. 모드를 끄면 마지막 성공 날짜가 여기 나옵니다.</span></dd>
+            <dt>오늘 매수</dt>
+            <dd><span class="strong">0 / 최대 10종목</span><span class="note">남은 자리 10</span></dd>
+            <dt>목록 확정</dt>
+            <dd><span class="strong">14:34</span><span class="note w">오늘 다시 켬 · 이전 목록은 10:49에 만들어짐</span></dd>
+          </dl>
+        </div>
+        <div class="sbox wcard">
+          <div class="name">SFA반도체 <span class="mono">036540</span></div>
+          <div class="line"><span>들어온 이유</span><span>고정 지정 종목</span></div>
+          <div class="line"><span>오른쪽에 잘렸던 열</span><span>카드 안 한 줄로</span></div>
+        </div>
+        <ul class="help">
+          <li><b>감시는 매수가 아닙니다.</b> 시세만 지켜보는 목록입니다.</li>
+          <li>실제 매수는 신호가 먼저 난 순서대로 하루 최대 10종목입니다.</li>
+          <li>감시는 최대 20종목까지 됩니다 (증권사 실시간 한도).</li>
+          <li>목록은 자동매매를 켤 때 정해집니다. 바뀐 목록을 쓰려면 다시 켜세요.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="fixlist">
+  <div class="prose">
+    <h2 id="fixlist">고칠 목록</h2>
+    <p class="muted">네 방향(숫자 검산 · 실제 운영 상태 · 구매자 문구 · 폰 배치)으로 따로 검토하고, 반박 검증을 통과한 42건과, 마지막 '빠진 것' 점검에서 나온 9건을 묶었습니다.</p>
+  </div>
+  <div class="fixes">
+    <div class="fix"><span class="lv must">꼭</span><div class="body"><h3>장 상태는 시계로 정하기</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">장중 14:26인데 "장외/대기"</span><span class="k">바꿈</span><span class="new">"정규장 · 마감까지 1시간 4분". 엔진 상태는 따로 배지</span></div>
+      <p class="who"><code>market_phase()</code> · <code>engine_badge()</code></p></div></div>
+
+    <div class="fix"><span class="lv must">꼭</span><div class="body"><h3>신호가 없으면 초록 금지</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">엔진이 꺼졌는데 초록 "킬스위치 정상"</span><span class="k">바꿈</span><span class="new">회색 "긴급정지 확인 불가", 잔고 실패면 주황 "일부만 작동"</span></div>
+      <p class="who"><code>killswitch_badge()</code></p></div></div>
+
+    <div class="fix"><span class="lv must">꼭</span><div class="body"><h3>손절이 실제로 도는지 보여 주기</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">표시 없음 (로그에만 ERROR)</span><span class="k">바꿈</span><span class="new">빨간 띠 "손절 보류 중 — 잔고 조회 실패", "손절 보호 안 되는 보유 종목 9개"</span></div>
+      <p class="who"><code>stoploss_badge()</code> · <code>unprotected_badge()</code></p></div></div>
+
+    <div class="fix"><span class="lv must">꼭</span><div class="body"><h3>"보유 종목 없음"은 정말 0일 때만</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">평가손익 -6,595,925원 바로 아래 "보유 종목 없음"</span><span class="k">바꿈</span><span class="new">"보유 종목을 불러오지 못했습니다". 감시 밖 보유분도 숨기지 않고 표시</span></div>
+      <p class="who"><code>holdings_badge()</code></p></div></div>
+
+    <div class="fix"><span class="lv must">꼭</span><div class="body"><h3>장중 엔진 멈춤은 빨간 경고로</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">"status.json 대기중 — trading_core 실행 시 자동 표시"</span><span class="k">바꿈</span><span class="new">"자동매매 멈춤 — 마지막 신호 ○○:○○ (N분 전). PC에서 자동매매 프로그램을 켜 주세요"</span></div>
+      <p class="who"><code>engine_badge()</code></p></div></div>
+
+    <div class="fix"><span class="lv must">꼭</span><div class="body"><h3>지정 종목만 모드를 화면에 드러내기</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">"밤스캔 스캔일 - · 낡음"</span><span class="k">바꿈</span><span class="new">주황 띠 "지정 종목만 모드 — 밤스캔·보유 종목 감시 안 함" + 해제 방법</span></div>
+      <p class="who"><code>scan_badge(fixed_only=True)</code></p></div></div>
+
+    <div class="fix"><span class="lv should">권장</span><div class="body"><h3>숫자마다 기준 시각</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">"1초 푸시"인데 언제 값인지 없음</span><span class="k">바꿈</span><span class="new">"한투 잔고 14:20 기준 · 15분 전 값 (갱신 안 됨)"</span></div>
+      <p class="who"><code>freshness_badge()</code>. 476,763,507 + 23,236,493 = 정확히 5억이라, 잔고 숫자가 오늘 갱신되지 않았을 수 있습니다</p></div></div>
+
+    <div class="fix"><span class="lv should">권장</span><div class="body"><h3>자리 문구를 한 가지 뜻으로</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">"오늘의 자리 0 / 10 … 남음"</span><span class="k">바꿈</span><span class="new">"오늘 산 종목 0 / 최대 10 · 남은 자리 10"</span></div>
+      <p class="who"><code>slots_badge()</code></p></div></div>
+
+    <div class="fix"><span class="lv should">권장</span><div class="body"><h3>감시 개수와 설명이 맞게</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">"감시 종목 1개" + "종목 수가 20개인 이유"</span><span class="k">바꿈</span><span class="new">"감시 종목 1 / 최대 20" + "오늘은 최대 1종목만 살 수 있습니다"</span></div>
+      <p class="who"><code>watch_badge()</code></p></div></div>
+
+    <div class="fix"><span class="lv should">권장</span><div class="body"><h3>손익 세 숫자가 맞물리게</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">전체 -23.2백만 · 원장 FIFO -4.7백만 · 평가 -6.6백만 나열</span><span class="k">바꿈</span><span class="new">"누적 = 실현 -16,640,568원 + 평가 -6,595,925원". FIFO 차이 11,945,147원은 '자세히'에</span></div>
+      <p class="who">매매기록에 수수료·세금이 빠졌는지 확인이 필요합니다</p></div></div>
+
+    <div class="fix"><span class="lv should">권장</span><div class="body"><h3>모의/실전 배지를 모든 화면에</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">어디에도 없음</span><span class="k">바꿈</span><span class="new">주황 "모의투자" / 빨강 "실전투자 · 실제 돈"</span></div>
+      <p class="who"><code>account_badge()</code></p></div></div>
+
+    <div class="fix"><span class="lv nice">다듬기</span><div class="body"><h3>0원은 중립색, 파랑은 손실에만</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">0원이 빨강, 개수·시각이 파랑</span><span class="k">바꿈</span><span class="new">0은 회색, 개수·시각은 흰색 굵게</span></div>
+      <p class="who"><code>pnl_class()</code> · CSS <code>.pnl-zero</code> <code>.val</code></p></div></div>
+
+    <div class="fix"><span class="lv nice">다듬기</span><div class="body"><h3>단어 중간 줄바꿈과 잘린 표</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">"킬스위/치", "(미/실현", 표 오른쪽 열 잘림</span><span class="k">바꿈</span><span class="new">단어 단위 줄바꿈, 폰에서 표는 종목별 카드</span></div>
+      <p class="who"><code>dashboard_mobile.css</code> · <code>dashboard_mobile.js</code></p></div></div>
+
+    <div class="fix"><span class="lv nice">다듬기</span><div class="body"><h3>개발 용어 빼기</h3>
+      <div class="ba"><span class="k">지금</span><span class="now">SSE 푸시 · J① 이벤트스트림 · 폴링 · 유니버스 · 원장 FIFO · status.json</span><span class="k">바꿈</span><span class="new">"1초마다 자동 갱신", "감시 종목", "매매기록 기준 손익"</span></div>
+      <p class="who">섹션 번호(2-1, 1-6)는 작게 두거나 개발자 모드에서만</p></div></div>
+  </div>
+</section>
+
+<section aria-labelledby="apply">
+  <div class="prose">
+    <h2 id="apply">대시보드에 붙이는 법</h2>
+    <p class="muted">대시보드 코드는 집 PC(<code>package_v9</code>)에 있어서 직접 고치지 못했습니다. 대신 그대로 가져다 쓰는 파일 세 개를 저장소에 넣었습니다.</p>
+  </div>
+  <div class="files">
+    <div class="file"><span class="path">utils/dash_status.py</span><span>위 규칙대로 상태 문구와 색을 정해 주는 함수 모음. 설치할 것 없음. 검사 38개 통과.</span></div>
+    <div class="file"><span class="path">static/dashboard_mobile.css</span><span>단어 단위 줄바꿈, 상태 배지 색, 0원 중립색, 폰에서 표 → 카드.</span></div>
+    <div class="file"><span class="path">static/dashboard_mobile.js</span><span>표에 카드용 이름표를 자동으로 붙임. 1초 갱신으로 다시 그려져도 유지.</span></div>
+  </div>
+<pre><code>from utils.dash_status import (market_phase, engine_badge, killswitch_badge,
+    stoploss_badge, holdings_badge, unprotected_badge, top_alerts)
+
+market = market_phase()                                   # 시계로 장 상태
+engine = engine_badge("status.json", market=market)       # 파일 수정 시각으로 생존 확인
+kill   = killswitch_badge(engine, tripped=False, balance_ok=balance_ok)
+stop   = stoploss_badge(engine, enabled=True, balance_ok=balance_ok)
+hold   = holdings_badge(balance_ok, len(held), eval_pnl=eval_pnl)
+naked  = unprotected_badge(held_codes, watch_codes, names=code_to_name)
+
+payload["alerts"] = [b.to_dict() for b in top_alerts(engine, stop, naked)]  # 맨 위 빨간 띠
+</code></pre>
+<pre><code>&lt;link rel="stylesheet" href="/static/dashboard_mobile.css"&gt;   &lt;!-- head 안 --&gt;
+&lt;script src="/static/dashboard_mobile.js"&gt;&lt;/script&gt;            &lt;!-- body 끝 --&gt;</code></pre>
+  <p class="foot">엔진 쪽에서 발견한 작은 버그 하나: 엔진을 켜자마자(14:34:57) "개장 10분이 지났는데 시세가 없다"며 휴장일로 판정했다가 20초 뒤 풀렸습니다. 10분은 엔진을 켠 시각부터 세야 합니다. 시간손절 달력이 <code>~ 2026-11-09</code>에서 끝나 있어 어제(11-10) 장후 배치가 안 돌았을 가능성도 있습니다. <code>logs\장후일괄_20261110_*.txt</code>를 확인하세요.</p>
+</section>
+
+</div>
