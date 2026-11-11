@@ -28,7 +28,8 @@
 /* ---------- 1) 한글 줄바꿈: 단어 단위로만 끊기 ---------- */
 html, body {
   word-break: keep-all;        /* '킬스위/치' 같은 단어 중간 끊김 방지 */
-  overflow-wrap: anywhere;     /* 아주 긴 영문·숫자는 넘치지 않게 */
+  overflow-wrap: break-word;   /* 한 줄에 다 못 들어가는 아주 긴 단어만 넘치지 않게 자름
+                                  (anywhere 는 표·칩 폭 계산까지 줄여서 '킬/스/위/치'로 쪼개므로 쓰지 않음) */
   line-break: strict;
   -webkit-text-size-adjust: 100%;
 }
@@ -86,20 +87,27 @@ html, body {
   .empty, .empty-card { width: 100%; box-sizing: border-box; font-size: 15px; line-height: 1.6; }
 
   /* 표 → 카드 (dashboard_mobile.js 가 table 에 m-cards 클래스와 data-label 을 붙여 줌) */
-  table.m-cards, table.m-cards tbody, table.m-cards tr, table.m-cards td { display: block; width: 100%; box-sizing: border-box; }
-  table.m-cards thead { display: none; }
+  table.m-cards, table.m-cards tbody, table.m-cards tfoot, table.m-cards tr, table.m-cards td {
+    display: block; width: 100%; box-sizing: border-box;
+  }
+  table.m-cards thead, table.m-cards tr.m-head { display: none; }
   table.m-cards tr {
     padding: 12px 14px; margin: 0 0 10px; border-radius: 10px;
     border: 1px solid rgba(139, 149, 161, .25); background: rgba(255, 255, 255, .02);
   }
+  /* 셀은 블록 그대로 두고 이름표만 왼쪽에 띄운다.
+     (flex 로 만들면 '-23,236,493원 (-4.65%)' 처럼 조각난 내용이 좌우로 흩어짐) */
   table.m-cards td {
-    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-    padding: 4px 0; border: 0; text-align: right;
+    padding: 4px 0; border: 0; text-align: right; min-height: 1.6em;
   }
   table.m-cards td::before {
-    content: attr(data-label); color: var(--muted); text-align: left; flex: none; max-width: 45%;
+    content: attr(data-label); float: left; max-width: 45%; margin-right: 12px;
+    color: var(--muted); text-align: left; font-weight: 400;
   }
-  table.m-cards td.m-title { font-size: 17px; font-weight: 800; justify-content: flex-start; text-align: left; padding-bottom: 6px; }
+  table.m-cards td::after { content: ""; display: block; clear: both; }
+  table.m-cards td[data-label=""]::before { content: none; }
+  table.m-cards td[data-label=""] { text-align: left; }
+  table.m-cards td.m-title { font-size: 17px; font-weight: 800; text-align: left; padding-bottom: 6px; }
   table.m-cards td.m-title::before { content: none; }
   table.m-cards td.m-idx { display: none; }
   table.m-cards td:empty { display: none; }

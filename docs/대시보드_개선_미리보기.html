@@ -217,7 +217,7 @@ a { color: var(--accent); }
     <li><span class="t">10:49</span><span>자동매매가 한 번 켜짐 (감시 목록 만든 시각). 이후 언젠가 꺼짐</span></li>
     <li><span class="t">14:26</span><span>폰 화면: <b>장외/대기</b> · <b>킬스위치 정상</b>(초록) · <b>보유 종목 없음</b>. 실제로는 정규장이고 자동매매는 꺼져 있었음</span></li>
     <li><span class="t">14:34</span><span>자동매매 재시작. <b>보유 9종목이 감시 밖</b>이라 손절이 돌지 않는다는 오류가 찍힘 (지정 종목만 모드)</span></li>
-    <li><span class="t">14:34~</span><span>한투 잔고 조회가 계속 실패 (<code>모의투자 신청내역을 확인하세요</code> / 시간 초과). 그래서 <b>SFA반도체 손절도 보류</b>, 긴급정지는 금액 기준만 작동</span></li>
+    <li><span class="t">14:34~</span><span>한투 잔고 조회가 계속 실패 (<code>모의투자 신청내역을 확인하세요</code> / 시간 초과). 그래서 <b>손절 판정 전체 보류</b>, 긴급정지는 금액 기준만 작동</span></li>
   </ul>
 </header>
 
@@ -285,7 +285,7 @@ a { color: var(--accent); }
         </div>
         <div class="sbox hold"><b>보유 종목을 불러오지 못했습니다</b><span class="ssub">한투 잔고 조회 실패 때문이며, 보유 주식이 없다는 뜻이 아닙니다. 평가손익 -6,595,925원이 있으므로 보유 주식이 있습니다.</span></div>
       </div>
-      <p class="mini">자동매매가 꺼져 있으면 맨 위 초록 배지 대신 빨간 띠 <b>"자동매매 꺼짐 — 응답 없음"</b>이 뜨고, 긴급정지는 회색 <b>"확인 불가"</b>로 바뀝니다. 신호가 없을 때는 어떤 배지도 초록이 되지 않습니다.</p>
+      <p class="mini">자동매매가 꺼져 있으면 맨 위 초록 배지 대신 빨간 띠 <b>"자동매매 꺼짐 — 응답 없음"</b>이 뜨고, 긴급정지는 회색 <b>"확인 불가"</b>로 바뀝니다. 신호가 없거나 잔고를 확인하지 못했을 때는 어떤 배지도 초록이 되지 않습니다.</p>
     </div>
   </div>
 </section>
@@ -419,12 +419,12 @@ a { color: var(--accent); }
     <p class="muted">대시보드 코드는 집 PC(<code>package_v9</code>)에 있어서 직접 고치지 못했습니다. 대신 그대로 가져다 쓰는 파일 세 개를 저장소에 넣었습니다.</p>
   </div>
   <div class="files">
-    <div class="file"><span class="path">utils/dash_status.py</span><span>위 규칙대로 상태 문구와 색을 정해 주는 함수 모음. 설치할 것 없음. 검사 38개 통과.</span></div>
+    <div class="file"><span class="path">utils/dash_status.py</span><span>위 규칙대로 상태 문구와 색을 정해 주는 함수 모음. 설치할 것 없음. 검사 52개 통과 (파이썬 3.10·3.13).</span></div>
     <div class="file"><span class="path">static/dashboard_mobile.css</span><span>단어 단위 줄바꿈, 상태 배지 색, 0원 중립색, 폰에서 표 → 카드.</span></div>
     <div class="file"><span class="path">static/dashboard_mobile.js</span><span>표에 카드용 이름표를 자동으로 붙임. 1초 갱신으로 다시 그려져도 유지.</span></div>
   </div>
 <pre><code>from utils.dash_status import (market_phase, engine_badge, killswitch_badge,
-    stoploss_badge, holdings_badge, unprotected_badge, top_alerts)
+    stoploss_badge, holdings_badge, unprotected_badge, scan_badge, top_alerts)
 
 market = market_phase()                                   # 시계로 장 상태
 engine = engine_badge("status.json", market=market)       # 파일 수정 시각으로 생존 확인
@@ -433,7 +433,9 @@ stop   = stoploss_badge(engine, enabled=True, balance_ok=balance_ok)
 hold   = holdings_badge(balance_ok, len(held), eval_pnl=eval_pnl)
 naked  = unprotected_badge(held_codes, watch_codes, names=code_to_name)
 
-payload["alerts"] = [b.to_dict() for b in top_alerts(engine, stop, naked)]  # 맨 위 빨간 띠
+scan   = scan_badge(scan_date, fixed_only=fixed_only, engine=engine)
+
+payload["alerts"] = [b.to_dict() for b in top_alerts(engine, stop, naked, scan)]  # 맨 위 띠
 </code></pre>
 <pre><code>&lt;link rel="stylesheet" href="/static/dashboard_mobile.css"&gt;   &lt;!-- head 안 --&gt;
 &lt;script src="/static/dashboard_mobile.js"&gt;&lt;/script&gt;            &lt;!-- body 끝 --&gt;</code></pre>

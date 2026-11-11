@@ -228,12 +228,32 @@ class TestScan(unittest.TestCase):
         self.assertIn("어젯밤", b.text)
 
     def test_월요일엔_금요일_결과가_새것(self):
-        self.assertEqual(scan_badge("20261106", today="2026-11-09").key, "fresh")
+        b = scan_badge("20261106", today="2026-11-09")
+        self.assertEqual(b.key, "fresh")
+        self.assertIn("직전 거래일(11-06)", b.text)  # 금요일 밤은 '어젯밤'이 아님
+
+    def test_같은날_결과는_날짜_한번만(self):
+        self.assertEqual(scan_badge("2026-11-11", today="2026-11-11").text, "밤스캔 11-11 결과 사용 중")
+
+    def test_엔진꺼지면_밤스캔도_초록아님(self):
+        e = engine_badge(None, T1426)
+        self.assertEqual(scan_badge("2026-11-10", today="2026-11-11", engine=e).level, "info")
+        self.assertEqual(scan_badge("2026-11-10", today="2026-11-11").level, "ok")
+
+    def test_숫자로_저장된_날짜(self):
+        self.assertEqual(scan_badge(20261110, today=20261111).key, "fresh")
+        self.assertEqual(market_phase(T1426, [20261111]).key, "holiday")
+
+    def test_시간대가_붙은_날짜문자열은_한국날짜로(self):
+        # 11-10 20:00 UTC = 11-11 05:00 KST
+        self.assertEqual(scan_badge("2026-11-10T20:00:00Z", today="2026-11-12").text, "밤스캔 어젯밤(11-11) 결과 사용 중")
 
     def test_오래된_결과(self):
         b = scan_badge("2026-11-06", today="2026-11-11")
         self.assertEqual(b.key, "stale")
-        self.assertIn("2거래일 전", b.text)
+        self.assertIn("3거래일 전", b.text)  # 11-10(1) · 11-09(2) · 11-06(3)
+        self.assertIn("2거래일 전", scan_badge("2026-11-09", today="2026-11-11").text)
+        self.assertIn("2거래일 전", scan_badge("2026-11-12", today="2026-11-15").text)  # 일요일에 본 목요일 결과
         self.assertIn("장후일괄_20261110", b.hint)
 
     def test_기록없음(self):
@@ -254,6 +274,69 @@ class TestFreshness(unittest.TestCase):
         self.assertEqual(b.level, "warn")
         self.assertIn("6분 전 값", b.text)
         self.assertEqual(freshness_badge(None, now=T1426).key, "unknown")
+
+
+class TestRobustInputs(unittest.TestCase):
+    """검증에서 찾은 입력들: 이런 값이 와도 죽지 않고, 초록으로 속이지 않아야 한다."""
+
+    def test_미래_신호시각은_초록이_아님(self):
+        # 한국 시각에 Z 를 붙인 흔한 실수: 14:20 KST 를 '14:20Z' 로 저장 → 23:20 KST 로 읽힘
+        e = engine_badge("2026-11-11T14:20:00Z", datetime(2026, 11, 11, 15, 0, tzinfo=KST),
+                         market=Badge("정규장", key="open"))
+        self.assertEqual((e.level, e.key), ("danger", "clock"))
+        self.assertNotEqual(killswitch_badge(e, tripped=False).level, "ok")
+        self.assertNotEqual(stoploss_badge(e).level, "ok")
+        self.assertEqual(engine_badge(T1426 + timedelta(days=1), T1426).key, "clock")
+        self.assertEqual(freshness_badge(T1426 + timedelta(hours=9), now=T1426).key, "unknown")
+
+    def test_파이썬310이_못읽던_ISO모양(self):
+        for s in ("2026-11-11T14:25:50+0900", "2026-11-11T14:25:50.1234567+09:00",
+                  "2026-11-11T14:25:50.12+09:00", "2026-11-11T05:25:50z", "2026-11-11 14:25:50"):
+            self.assertEqual(engine_badge(s, T1426).key, "alive", s)
+
+    def test_밀리초_NaN_무한대(self):
+        self.assertEqual(engine_badge(T1426.timestamp() * 1000 - 3000, T1426).key, "alive")
+        for bad in (float("nan"), float("inf"), -1e30):
+            self.assertEqual(engine_badge(bad, T1426).key, "never")
+        self.assertEqual(freshness_badge(float("nan"), now=T1426).key, "unknown")
+
+    def test_보유수_모르면_없음이라_하지않음(self):
+        self.assertEqual(holdings_badge(True, None, now=T1426).key, "unknown")
+        self.assertEqual(holdings_badge(True, now=T1426).key, "unknown")
+        self.assertEqual(holdings_badge(True, float("nan"), now=T1426).key, "unknown")
+
+    def test_평가손익_반올림0이면_보유있다고_안함(self):
+        h = holdings_badge(False, 0, eval_pnl=0.3, now=T1426)
+        self.assertNotIn("보유 주식이 있습니다", h.hint)
+        self.assertEqual(holdings_badge(False, 0, eval_pnl=float("nan"), now=T1426).key, "unknown")
+
+    def test_잔고_모름이면_초록아님(self):
+        alive = engine_badge(T1426, T1426)
+        self.assertEqual(killswitch_badge(alive, tripped=False, balance_ok=None).level, "warn")
+        self.assertEqual(stoploss_badge(alive, balance_ok=None).level, "warn")
+
+    def test_bool_엔진은_장시간을_지어내지_않음(self):
+        b = stoploss_badge(False)
+        self.assertNotIn("장 시간", b.text)
+        self.assertEqual(b.key, "off")
+
+    def test_긴급정지_힌트가_상태와_맞음(self):
+        alive = engine_badge(T1426, T1426)
+        self.assertNotIn("신호가 없어", killswitch_badge(alive, tripped=None).hint)
+        self.assertNotIn("손절은 계속", killswitch_badge(alive, tripped=True, balance_ok=False).hint)
+        self.assertIn("손절은 계속", killswitch_badge(alive, tripped=True, balance_ok=True).hint)
+
+    def test_판다스_실수_종목코드(self):
+        self.assertIsNone(unprotected_badge([660.0, 36540.0], ["000660", "036540"]))
+
+    def test_숫자아님(self):
+        self.assertEqual(fmt_won(float("nan")), "-")
+        self.assertEqual(fmt_won(float("inf")), "-")
+        self.assertEqual(fmt_pct(float("nan")), "-")
+        self.assertEqual(fmt_won(None), "0원")
+        self.assertEqual(pnl_class(float("nan")), "pnl-zero")
+        self.assertEqual(slots_badge(float("nan")).key, "unknown")
+        self.assertEqual(watch_badge(float("nan")).key, "empty")
 
 
 class TestFormat(unittest.TestCase):
