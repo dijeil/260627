@@ -336,7 +336,43 @@ class TestRobustInputs(unittest.TestCase):
         self.assertEqual(fmt_won(None), "0원")
         self.assertEqual(pnl_class(float("nan")), "pnl-zero")
         self.assertEqual(slots_badge(float("nan")).key, "unknown")
-        self.assertEqual(watch_badge(float("nan")).key, "empty")
+        self.assertEqual(watch_badge(float("nan")).key, "unknown")
+        self.assertEqual(watch_badge(None).key, "unknown")
+        self.assertNotIn("nan", watch_badge(5, from_scan=float("nan"), fixed=2.0).text)
+        self.assertEqual(watch_badge(5, from_scan=float("nan"), fixed=2.0).text, "감시 종목 5 / 최대 20 (고정 2개)")
+        self.assertNotIn("nan", holdings_badge(True, 9, outside_watch=float("nan"), now=T1426).text)
+        self.assertNotIn("nan", scan_badge("2026-11-10", today="2026-11-11", candidates=float("nan")).text)
+        self.assertIn("보내 주지 않았습니다", slots_badge(None).hint)
+
+    def test_재검증에서_찾은_입력(self):
+        # 3.10 에서 못 읽던 오프셋 모양들
+        for s in ("2026-11-11 14:25:58 +0900", "2026-11-11T14:25:58+09",
+                  "2026-11-11 14:25:58.123456+09", "2026-11-11T14:25:58,5+09:00",
+                  "2026-11-11T00:25:58-05:00"):
+            self.assertEqual(engine_badge(s, T1426).key, "alive", s)
+        # 시계가 어긋난 상태는 '멈춤'이라고 단정하지 않는다
+        e = engine_badge("2026-11-11T14:20:00Z", datetime(2026, 11, 11, 15, 0, tzinfo=KST),
+                         market=Badge("정규장", key="open"))
+        self.assertNotIn("멈춤", stoploss_badge(e).text)
+        self.assertIn("시각", killswitch_badge(e, tripped=False).hint)
+        # 잔고 값이 NaN·0 이어도 배지끼리 같은 뜻으로 읽는다
+        alive = engine_badge(T1426, T1426)
+        self.assertEqual(holdings_badge(float("nan"), 0, now=T1426).key, "unknown")
+        self.assertEqual(stoploss_badge(alive, balance_ok=0).key, "held")
+        self.assertTrue(holdings_badge(None, 0, now=T1426).hint.startswith("잔고 정보를 받지 못했습니다"))
+        # 실수로 저장된 날짜
+        self.assertEqual(scan_badge(20261110.0, today="2026-11-11").key, "fresh")
+        self.assertEqual(market_phase(T1426, [20261111.0]).key, "holiday")
+
+    def test_판다스_NaT(self):
+        try:
+            import pandas as pd
+        except ImportError:
+            self.skipTest("pandas 없음")
+        self.assertEqual(engine_badge(pd.NaT, T1426).key, "never")
+        self.assertEqual(freshness_badge(pd.NaT, now=T1426).key, "unknown")
+        self.assertEqual(scan_badge(pd.NaT, today="2026-11-11").key, "none")
+        self.assertEqual(holdings_badge(True, 3, as_of=pd.NaT, now=T1426).key, "some")
 
 
 class TestFormat(unittest.TestCase):

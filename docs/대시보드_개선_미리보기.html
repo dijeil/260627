@@ -419,9 +419,9 @@ a { color: var(--accent); }
     <p class="muted">대시보드 코드는 집 PC(<code>package_v9</code>)에 있어서 직접 고치지 못했습니다. 대신 그대로 가져다 쓰는 파일 세 개를 저장소에 넣었습니다.</p>
   </div>
   <div class="files">
-    <div class="file"><span class="path">utils/dash_status.py</span><span>위 규칙대로 상태 문구와 색을 정해 주는 함수 모음. 설치할 것 없음. 검사 52개 통과 (파이썬 3.10·3.13).</span></div>
+    <div class="file"><span class="path">utils/dash_status.py</span><span>위 규칙대로 상태 문구와 색을 정해 주는 함수 모음. 설치할 것 없음. 검사 54개 통과 (파이썬 3.10·3.13).</span></div>
     <div class="file"><span class="path">static/dashboard_mobile.css</span><span>단어 단위 줄바꿈, 상태 배지 색, 0원 중립색, 폰에서 표 → 카드.</span></div>
-    <div class="file"><span class="path">static/dashboard_mobile.js</span><span>표에 카드용 이름표를 자동으로 붙임. 1초 갱신으로 다시 그려져도 유지.</span></div>
+    <div class="file"><span class="path">static/dashboard_mobile.js</span><span>표에 카드용 이름표를 자동으로 붙임. 1초 갱신으로 다시 그려져도 유지. 실제 브라우저 확인 31개 통과.</span></div>
   </div>
 <pre><code>from utils.dash_status import (market_phase, engine_badge, killswitch_badge,
     stoploss_badge, holdings_badge, unprotected_badge, scan_badge, top_alerts)

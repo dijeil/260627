@@ -24,14 +24,12 @@
   var CODE_HEAD = /(코드|code)/i;
 
   function cellText(c) {
-    // 머리글이 화면에 보일 때 한 번 읽어 저장해 둔다.
-    // (카드로 바뀐 뒤에는 thead 가 숨겨져서 innerText 가 줄바꿈 공백을 잃기 때문)
-    var t = c.getAttribute("data-m-label");
-    if (t === null) {
-      t = (c.innerText || c.textContent || "").replace(/\s+/g, " ").trim();
-      c.setAttribute("data-m-label", t);
-    }
-    return t;
+    // 화면 배치와 상관없이 글자를 읽는다 (머리글이 숨겨져 있어도 <br> 을 띄어쓰기로).
+    // 매번 새로 읽으므로 머리글 글자가 바뀌면(예: 손익(원) → 손익(%)) 이름표도 따라 바뀐다.
+    var k = c.cloneNode(true);
+    var brs = k.querySelectorAll("br");
+    for (var i = 0; i < brs.length; i++) brs[i].parentNode.replaceChild(document.createTextNode(" "), brs[i]);
+    return (k.textContent || "").replace(/\s+/g, " ").trim();
   }
 
   function headerRow(table) {
@@ -41,14 +39,31 @@
     return null;
   }
 
-  function headerLabels(row) {
-    var out = [];
-    for (var i = 0; i < row.cells.length; i++) {
-      var c = row.cells[i];
-      var t = cellText(c);
-      var span = c.colSpan || 1;
-      for (var s = 0; s < span; s++) out.push(t);
+  // 머리글이 여러 줄(rowspan·colspan)이어도 열마다 맨 아래 칸의 글자를 이름표로 쓴다.
+  //   [종목(rowspan2)] [손익(colspan2)]       →  종목 · 원 · %
+  //                    [원] [%]
+  function headerLabels(table, hrow) {
+    var rows = (table.tHead && hrow.parentNode === table.tHead) ? table.tHead.rows : [hrow];
+    var grid = [];
+    for (var r = 0; r < rows.length; r++) {
+      grid[r] = grid[r] || [];
+      var col = 0;
+      for (var i = 0; i < rows[r].cells.length; i++) {
+        var c = rows[r].cells[i];
+        while (grid[r][col] !== undefined) col++;
+        var t = cellText(c);
+        var cs = c.colSpan || 1;
+        var rs = Math.max(1, c.rowSpan || 1);
+        for (var y = 0; y < rs && r + y < rows.length; y++) {
+          grid[r + y] = grid[r + y] || [];
+          for (var x = 0; x < cs; x++) grid[r + y][col + x] = t;
+        }
+        col += cs;
+      }
     }
+    var last = grid[rows.length - 1] || [];
+    var out = [];
+    for (var j = 0; j < last.length; j++) out.push(last[j] === undefined ? "" : last[j]);
     return out;
   }
 
@@ -64,7 +79,7 @@
     var hrow = headerRow(table);
     if (!hrow) return;
     if (!table.tHead || hrow.parentNode !== table.tHead) hrow.classList.add("m-head");
-    var labels = headerLabels(hrow);
+    var labels = headerLabels(table, hrow);
     var titleCol = findTitleCol(labels);
 
     var rows = table.rows; // tbody 여러 개 · tfoot · tbody 없이 붙인 행까지 전부
@@ -81,7 +96,9 @@
           if ((labels[col + s] || "") !== label) { label = ""; break; }
         }
         if (td.getAttribute("data-label") !== label) td.setAttribute("data-label", label);
-        if (span === 1 && IDX_HEAD.test(label)) td.classList.add("m-idx");
+        // '#' 열이라도 숫자(또는 빈칸)일 때만 숨긴다. '합계' 같은 글자는 보여 준다.
+        if (span === 1 && IDX_HEAD.test(label) && /^\s*\d*\s*$/.test(td.textContent || "")) td.classList.add("m-idx");
+        else td.classList.remove("m-idx");
         if (span === 1 && col === titleCol) td.classList.add("m-title");
         col += span;
       }
@@ -129,7 +146,7 @@
     if (typeof v === "number") return v > 0 ? "pnl-up" : v < 0 ? "pnl-down" : "pnl-zero";
     var s = String(v == null ? "" : v);
     if (!/[1-9]/.test(s)) return "pnl-zero";
-    return /^\s*[-−▼]/.test(s) ? "pnl-down" : "pnl-up";
+    return /^[^0-9]*[-−▼]/.test(s) ? "pnl-down" : "pnl-up";   // '(-4.65%)', '손익 -1,000원' 도 손실
   }
 
   window.DashStatus = { render: render, pnlClass: pnlClass, refreshTables: scan };

@@ -144,6 +144,8 @@ def _to_dt(x) -> datetime | None:
     if x is None:
         return None
     if isinstance(x, datetime):
+        if x != x:                                   # pandas NaT
+            return None
         return x.replace(tzinfo=KST) if x.tzinfo is None else x.astimezone(KST)
     if isinstance(x, date):
         return datetime(x.year, x.month, x.day, tzinfo=KST)
@@ -181,24 +183,27 @@ def _from_epoch(x) -> datetime | None:
         return None
 
 
-_ISO_OFFSET_NOCOLON = re.compile(r"([+-]\d{2})(\d{2})$")
+_ISO_COMMA = re.compile(r"(T\d{2}:\d{2}:\d{2}),(\d)")
+_ISO_OFFSET = re.compile(r"(T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)\s*([+-]\d{2}):?(\d{2})?$")
 _ISO_FRACTION = re.compile(r"(\d{2}:\d{2}:\d{2})\.(\d+)")
 
 
 def _norm_iso(s: str) -> str:
     """파이썬 3.10 의 fromisoformat 이 못 읽는 모양을 고쳐 준다.
 
-    '...Z' / '...z' → '+00:00',  '+0900' → '+09:00',
-    소수점 아래 초는 6자리로 맞춘다 (PowerShell 은 7자리, 일부는 2자리를 씀).
+    '...Z' / '...z' → '+00:00',  '+0900' · '+09' · ' +0900'(띄어 씀) → '+09:00',
+    '14:25:58,5'(쉼표) → '14:25:58.5', 소수점 아래 초는 6자리로 맞춘다
+    (PowerShell 은 7자리, 일부는 2자리를 씀).
     """
     s = s.strip()
     if not s:
         return s
     if s[-1] in "Zz":
-        s = s[:-1] + "+00:00"
+        s = s[:-1].rstrip() + "+00:00"
     if len(s) > 10 and s[10] in "Tt ":
         s = s[:10] + "T" + s[11:]
-        s = _ISO_OFFSET_NOCOLON.sub(r"\1:\2", s) if re.search(r"T\d{2}:\d{2}(:\d{2}(\.\d+)?)?[+-]\d{4}$", s) else s
+        s = _ISO_COMMA.sub(r"\1.\2", s)
+        s = _ISO_OFFSET.sub(lambda m: m.group(1) + m.group(2) + ":" + (m.group(3) or "00"), s)
         s = _ISO_FRACTION.sub(lambda m: m.group(1) + "." + (m.group(2) + "000000")[:6], s)
     return s
 
@@ -207,9 +212,14 @@ def _to_date(x) -> date | None:
     if x is None:
         return None
     if isinstance(x, datetime):
-        return _to_dt(x).date()
+        dt = _to_dt(x)                               # NaT 이면 None
+        return dt.date() if dt else None
     if isinstance(x, date):
         return x
+    if isinstance(x, float) and x.is_integer():
+        x = int(x)                                   # 판다스 숫자 열의 20261110.0
+    elif not isinstance(x, (bool, str, int, float)) and hasattr(x, "__index__"):
+        x = x.__index__()                            # numpy.int64
     if isinstance(x, int) and not isinstance(x, bool) and 19000101 <= x <= 99991231:
         x = str(x)                                   # JSON 에 숫자로 저장된 20261110
     if isinstance(x, str):
@@ -266,6 +276,18 @@ def _finite(v):
     if not math.isfinite(f):
         return None
     return v if isinstance(v, int) else f
+
+
+def _flag(v):
+    """참/거짓 값. None·NaN 은 '모름'(None), 나머지는 bool (0 → False, numpy.bool_ 도 됨)."""
+    if v is None:
+        return None
+    try:
+        if v != v:                                   # NaN
+            return None
+    except Exception:
+        pass
+    return bool(v)
 
 
 def _hm(dt: datetime, now: datetime) -> str:
@@ -437,6 +459,9 @@ def killswitch_badge(engine, tripped: bool | None = None, balance_ok: bool | Non
 
     규칙: 프로그램 신호가 없거나 잔고를 확인하지 못했으면 절대 초록이 아니다.
     """
+    balance_ok = _flag(balance_ok)
+    if isinstance(engine, Badge) and engine.key == "clock":
+        return Badge("긴급정지 확인 불가", "info", "자동매매 신호 시각이 어긋나 긴급정지 상태를 알 수 없습니다.", "unknown")
     if not _alive(engine):
         return Badge("긴급정지 확인 불가", "info", "자동매매 프로그램 신호가 없어 긴급정지 상태를 알 수 없습니다.", "unknown")
     if tripped is None:
@@ -472,6 +497,14 @@ def stoploss_badge(engine, *, enabled: bool = True, balance_ok: bool | None = Tr
     2026-11-11 로그: 잔고 조회가 실패하면 프로그램이 '신선도 검사'로 손절 판정을 스스로 미룬다.
     프로그램은 켜져 있어도 손절은 멈춘 상태가 되므로 따로 알려야 한다.
     """
+    balance_ok = _flag(balance_ok)
+    if isinstance(engine, Badge) and engine.key == "clock":
+        return Badge(
+            "손절 상태 확인 불가 — 자동매매 신호 시각 이상",
+            engine.level,
+            "신호 시각이 어긋나 손절이 도는지 알 수 없습니다. 한국투자증권 앱에서 직접 확인하세요.",
+            "unknown",
+        )
     if not _alive(engine):
         if not isinstance(engine, Badge):
             # True/False 만 받았으면 장 시간인지 모르므로 '장 시간 아님'이라고 지어내지 않는다.
@@ -516,14 +549,20 @@ def holdings_badge(
     now = _now(now)
     when = _to_dt(as_of)
     basis = f" ({_hm(when, now)} 한투 잔고 기준)" if when else ""
+    balance_ok = _flag(balance_ok)
     eval_pnl = _finite(eval_pnl)
     count = _finite(count)
+    outside_watch = int(_finite(outside_watch) or 0)
     has_pnl = eval_pnl is not None and round(eval_pnl) != 0
 
-    if not balance_ok or count is None:
-        hint = (
-            "한투 잔고 조회가 실패했습니다." if not balance_ok else "보유 종목 수를 받지 못했습니다."
-        ) + " 보유 주식이 없다는 뜻이 아닙니다."
+    if balance_ok is not True or count is None:
+        if balance_ok is False:
+            hint = "한투 잔고 조회가 실패했습니다."
+        elif balance_ok is None:
+            hint = "잔고 정보를 받지 못했습니다."
+        else:
+            hint = "보유 종목 수를 받지 못했습니다."
+        hint += " 보유 주식이 없다는 뜻이 아닙니다."
         if has_pnl:
             hint += f" 마지막으로 받은 평가손익이 {fmt_won(eval_pnl)}이므로 보유 주식이 있습니다."
         hint += " 한국투자증권 앱에서 직접 확인하세요."
@@ -591,13 +630,22 @@ def watch_badge(
     from_scan: int | None = None,
     fixed: int | None = None,
 ) -> Badge:
-    """'감시 종목 1 / 최대 20' — 지금 개수와 상한을 같이 보여 준다."""
-    count = int(_finite(count) or 0)
+    """'감시 종목 1 / 최대 20' — 지금 개수와 상한을 같이 보여 준다. 개수를 모르면 '확인 불가'."""
+    c = _finite(count)
+    if c is None:
+        return Badge(
+            f"감시 종목: 확인 불가 / 최대 {max_watch}",
+            "warn",
+            "감시 종목 수를 받지 못했습니다. 감시 종목이 없다는 뜻이 아닙니다.",
+            "unknown",
+        )
+    count = int(c)
+    from_scan, fixed = _finite(from_scan), _finite(fixed)
     detail = []
     if from_scan is not None:
-        detail.append(f"밤스캔 {from_scan}개")
+        detail.append(f"밤스캔 {int(from_scan)}개")
     if fixed is not None:
-        detail.append(f"고정 {fixed}개")
+        detail.append(f"고정 {int(fixed)}개")
     text = f"감시 종목 {count} / 최대 {max_watch}" + (f" ({' · '.join(detail)})" if detail else "")
     if count == 0:
         return Badge(text, "danger", "감시 종목이 없어 오늘은 아무것도 사지 않습니다.", "empty")
@@ -610,7 +658,8 @@ def slots_badge(used: int | None, max_slots: int = 10, *, known: bool = True) ->
     """'오늘 산 종목 0 / 최대 10 · 남은 자리 10' — 사용 수와 남은 수를 둘 다 숫자로 쓴다."""
     used = _finite(used)
     if not known or used is None:
-        return Badge("오늘 매수 자리: 확인 불가", "info", "자동매매 프로그램 신호가 없어 알 수 없습니다.", "unknown")
+        hint = "자동매매 프로그램 신호가 없어 알 수 없습니다." if not known else "자동매매 프로그램이 오늘 매수 수를 보내 주지 않았습니다."
+        return Badge("오늘 매수 자리: 확인 불가", "info", hint, "unknown")
     used = int(used)
     left = max(0, max_slots - used)
     if left == 0:
@@ -658,7 +707,8 @@ def scan_badge(
         )
 
     expected = prev_trading_day(today, hs)
-    cand = f" · 후보 {candidates}개" if candidates is not None else ""
+    c = _finite(candidates)
+    cand = f" · 후보 {int(c)}개" if c is not None else ""
     if d >= expected:
         if d == today - timedelta(days=1):
             when = f"어젯밤({d:%m-%d})"

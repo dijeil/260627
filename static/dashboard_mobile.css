@@ -107,13 +107,15 @@ html, body {
   table.m-cards td::after { content: ""; display: block; clear: both; }
   table.m-cards td[data-label=""]::before { content: none; }
   table.m-cards td[data-label=""] { text-align: left; }
-  table.m-cards td.m-title { font-size: 17px; font-weight: 800; text-align: left; padding-bottom: 6px; }
+  table.m-cards tbody tr, table.m-cards tfoot tr { display: flex; flex-direction: column; } /* 제목을 맨 위로 올리기 위해 */
+  table.m-cards td.m-title { order: -1; font-size: 17px; font-weight: 800; text-align: left; padding-bottom: 6px; }
   table.m-cards td.m-title::before { content: none; }
   table.m-cards td.m-idx { display: none; }
   table.m-cards td:empty { display: none; }
 
   /* 표를 감싼 가로 스크롤 상자는 카드가 되면 필요 없음 */
-  .m-cards-wrap { overflow: visible !important; }
+  /* 가로만 풀어 준다. 세로 스크롤 상자(max-height + overflow:auto)는 그대로 스크롤되게 */
+  .m-cards-wrap { overflow-x: visible !important; }
 
   /* 오른쪽 아래 '?' 버튼이 마지막 내용을 가리지 않게 */
   body { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
