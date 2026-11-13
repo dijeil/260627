@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTS형 캔들차트 예제</title>
+<style>
+  :root { --bg:#0d1117; --panel:#131722; --line:#2a3140; --text:#c9d1d9; --muted:#8b949e; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 "Malgun Gothic","Apple SD Gothic Neo",sans-serif; }
+  .wrap { max-width:1200px; margin:0 auto; padding:16px; }
+  .bar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:8px; }
+  .bar button { background:#1f2633; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; }
+  .bar button.on { background:#2f7de1; border-color:#2f7de1; color:#fff; }
+  .chartbox { position:relative; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  #main { height:460px; }
+  #sub { height:140px; margin-top:6px; }
+  .legend { position:absolute; left:10px; top:6px; z-index:3; pointer-events:none; font-size:13px; line-height:1.6;
+            background:rgba(19,23,34,.75); padding:2px 8px; border-radius:6px; }
+  .help { color:var(--muted); font-size:13px; margin-top:10px; }
+  kbd { background:#1f2633; border:1px solid var(--line); border-radius:4px; padding:0 5px; }
+  @media (max-width:600px) { #main { height:340px; } .legend { font-size:12px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar" id="periods">
+    <button data-n="20">1개월</button><button data-n="60" class="on">3개월</button>
+    <button data-n="120">6개월</button><button data-n="250">1년</button><button data-n="0">전체</button>
+    <span style="flex:1"></span>
+    <button id="magnet">자석 십자선 끔</button>
+  </div>
+
+  <div class="chartbox"><div class="legend" id="legend"></div><div id="main"></div></div>
+  <div class="chartbox"><div class="legend" id="legend2"></div><div id="sub"></div></div>
+
+  <p class="help">
+    마우스를 올리면 왼쪽 위에 그 날의 시가·고가·저가·종가·등락률·거래량·지표값이 나옵니다 ·
+    <kbd>←</kbd><kbd>→</kbd> 한 봉씩 이동 · <kbd>+</kbd><kbd>-</kbd> 확대·축소 · <kbd>Home</kbd> 최신으로 · 더블클릭 원래대로
+  </p>
+</div>
+
+<!-- 라이브러리 버전을 고정해야 갑자기 바뀌지 않습니다 -->
+<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="chart_hts_kit.js"></script>
+<script>
+  // ▼ 예제용 가짜 일봉. 실제로는 대시보드가 가진 일봉 배열을 그대로 넣으면 됩니다.
+  function sample() {
+    var out = [], px = 52000, d = new Date(Date.UTC(2025, 10, 3));
+    while (out.length < 260) {
+      d.setUTCDate(d.getUTCDate() + 1);
+      if (d.getUTCDay() === 0 || d.getUTCDay() === 6) continue;
+      var o = px, c = Math.max(1000, Math.round(o * (1 + (Math.random() - 0.48) * 0.04) / 100) * 100);
+      out.push({ time: d.toISOString().slice(0, 10), open: o, close: c,
+        high: Math.max(o, c) + Math.round(Math.random() * 6) * 100, low: Math.min(o, c) - Math.round(Math.random() * 6) * 100,
+        volume: Math.round(5e6 + Math.random() * 1e7) });
+      px = c;
+    }
+    return out;
+  }
+  var data = sample();
+
+  // 1) 가격 차트
+  var mainEl = document.getElementById("main");
+  var chart = HtsChart.create(mainEl);
+  var candle = HtsChart.candles(chart, data);
+  HtsChart.volume(chart, data);
+  var ma5  = HtsChart.line(chart, HtsChart.sma(data, 5),  "#f5c542", "5일");
+  var ma20 = HtsChart.line(chart, HtsChart.sma(data, 20), "#ff8a3d", "20일");
+  var ma60 = HtsChart.line(chart, HtsChart.sma(data, 60), "#b98cff", "60일");
+  var bb = HtsChart.bollinger(data, 20, 2);
+  var bbU = HtsChart.line(chart, bb.upper, "#9aa4b2", "볼린저상", 0, { lineStyle: 2 });
+  var bbL = HtsChart.line(chart, bb.lower, "#9aa4b2", "볼린저하", 0, { lineStyle: 2 });
+
+  // 매매 표시와 평단가 선 (대시보드의 체결 내역을 넣으면 됩니다)
+  HtsChart.markers(candle, [
+    { time: data[data.length - 40].time, side: "매수", qty: 132 },
+    { time: data[data.length - 5].time,  side: "매도", qty: 132 }
+  ]);
+  HtsChart.priceLine(candle, data[data.length - 40].close, "평단", "#f5c542");
+
+  HtsChart.legend(chart, document.getElementById("legend"), { candle: candle, title: "예제종목", lines: [ma5, ma20, ma60, bbU, bbL] });
+  HtsChart.keyboard(chart, mainEl);
+
+  // 2) 보조지표 차트 (RSI) — 가격 차트와 스크롤·십자선이 같이 움직임
+  var subEl = document.getElementById("sub");
+  var sub = HtsChart.create(subEl, { rightPriceScale: { scaleMargins: { top: 0.1, bottom: 0.1 } }, localization: { priceFormatter: function (p) { return p.toFixed(1); } } });
+  var rsi = HtsChart.line(sub, HtsChart.rsi(data, 14), "#c77dff", "RSI(14)", 0, { lineWidth: 2 });
+  rsi.createPriceLine({ price: 70, color: "#e8443a", lineStyle: 2, lineWidth: 1, title: "과열" });
+  rsi.createPriceLine({ price: 30, color: "#2f7de1", lineStyle: 2, lineWidth: 1, title: "침체" });
+  sub.subscribeCrosshairMove(function (p) {
+    var v = p.time != null ? p.seriesData.get(rsi) : null;
+    var last = HtsChart.rsi(data, 14).slice(-1)[0].value;
+    document.getElementById("legend2").innerHTML = 'RSI(14) <b style="color:#c77dff">' + (v ? v.value : last).toFixed(1) + '</b>';
+  });
+  document.getElementById("legend2").innerHTML = 'RSI(14) <b style="color:#c77dff">' + HtsChart.rsi(data, 14).slice(-1)[0].value.toFixed(1) + '</b>';
+  HtsChart.sync([{ chart: chart, series: candle }, { chart: sub, series: rsi }]);
+
+  // 3) 기간 버튼·자석 버튼
+  document.getElementById("periods").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-n]"); if (!b) return;
+    document.querySelectorAll("#periods button[data-n]").forEach(function (x) { x.classList.toggle("on", x === b); });
+    var n = +b.dataset.n; n ? HtsChart.showLast(chart, n) : chart.timeScale().fitContent();
+  });
+  var mag = false;
+  document.getElementById("magnet").addEventListener("click", function () {
+    mag = !mag; HtsChart.magnet(chart, mag); HtsChart.magnet(sub, mag);
+    this.textContent = mag ? "자석 십자선 켬" : "자석 십자선 끔"; this.classList.toggle("on", mag);
+  });
+  HtsChart.showLast(chart, 60);
+</script>
+</body>
+</html>
